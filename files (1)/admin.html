@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CrewTrack — Admin</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="shell">
+  <div class="topbar">
+    <div class="wordmark">CrewTrack<span class="dot">.</span>Ledger</div>
+    <div class="who">
+      <span class="badge-role">Admin</span>
+      <span id="whoName" class="mono" style="font-size:13px;"></span>
+      <button class="logout-btn" onclick="logout()">Log out</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <h1 class="page-title">Task Ledger — All Employees</h1>
+    <p class="page-sub">Assign tasks, track progress, and update status across the team.</p>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-num mono" id="statEmployees">0</div>
+        <div class="stat-label">Employees</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-num mono" id="statPending">0</div>
+        <div class="stat-label">Pending tasks</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-num mono" id="statDone">0</div>
+        <div class="stat-label">Completed tasks</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Assign a new task</h3>
+      <div class="form-row">
+        <div class="field">
+          <label for="selEmployee">Employee</label>
+          <select id="selEmployee"></select>
+        </div>
+        <div class="field">
+          <label for="taskDate">Date</label>
+          <input type="date" id="taskDate" />
+        </div>
+        <div class="field">
+          <label for="taskTitle">Task title</label>
+          <input type="text" id="taskTitle" placeholder="e.g. Prepare client demo" />
+        </div>
+        <button class="btn-small" onclick="addTask()">Assign task</button>
+      </div>
+    </div>
+
+    <div class="ledger" style="margin-bottom:24px;">
+      <div class="ledger-row head">
+        <div>Emp. ID</div>
+        <div>Employee</div>
+        <div>Task</div>
+        <div>Status</div>
+        <div></div>
+      </div>
+      <div id="taskList"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Add employee</h3>
+      <div class="form-row">
+        <div class="field">
+          <label for="newEmpId">Employee ID</label>
+          <input type="text" id="newEmpId" placeholder="e.g. EMP-1004" />
+        </div>
+        <div class="field">
+          <label for="newEmpName">Full name</label>
+          <input type="text" id="newEmpName" placeholder="Full name" />
+        </div>
+        <div class="field">
+          <label for="newEmpTitle">Job title</label>
+          <input type="text" id="newEmpTitle" placeholder="e.g. Backend Developer" />
+        </div>
+        <button class="btn-small" onclick="addEmployee()">Add employee</button>
+      </div>
+      <p class="eyebrow" style="margin-top:14px;">New employees get the default password <span class="mono" style="color:var(--ink);">welcome123</span> — share it with them directly.</p>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+  const session = currentSession();
+  if (!session || session.role !== 'admin') {
+    window.location.href = 'index.html';
+  }
+
+  function logout() {
+    clearSession();
+    window.location.href = 'index.html';
+  }
+
+  function populateEmployeeSelect(db) {
+    const sel = document.getElementById('selEmployee');
+    sel.innerHTML = db.employees.map(e => `<option value="${e.id}">${e.name} (${e.id})</option>`).join('');
+  }
+
+  function render() {
+    const db = loadDB();
+    document.getElementById('whoName').textContent = session.username;
+    populateEmployeeSelect(db);
+
+    const done = db.tasks.filter(t => t.status === 'completed').length;
+    document.getElementById('statEmployees').textContent = db.employees.length;
+    document.getElementById('statPending').textContent = db.tasks.length - done;
+    document.getElementById('statDone').textContent = done;
+
+    const list = document.getElementById('taskList');
+    if (db.tasks.length === 0) {
+      list.innerHTML = '<div class="empty-state">No tasks yet. Assign the first one above.</div>';
+      return;
+    }
+
+    // most recently assigned first
+    const sorted = [...db.tasks].sort((a, b) => b.id - a.id);
+
+    list.innerHTML = sorted.map(t => {
+      const emp = findEmployee(db, t.employeeId) || { name: 'Unknown', id: t.employeeId };
+      return `
+      <div class="ledger-row">
+        <div class="emp-id mono">${emp.id}</div>
+        <div class="emp-name">${escapeHtml(emp.name)}</div>
+        <div class="task-title">${escapeHtml(t.title)}<span class="meta mono">Assigned ${t.assignedDate}</span></div>
+        <div><span class="stamp ${t.status === 'completed' ? 'complete' : 'pending'}">${t.status === 'completed' ? 'Complete' : 'Pending'}</span></div>
+        <div class="row-actions">
+          <button class="icon-btn ${t.status === 'completed' ? '' : 'confirm'}" onclick="toggleStatus(${t.id})">
+            ${t.status === 'completed' ? 'Reopen' : 'Mark done'}
+          </button>
+          <button class="icon-btn danger" onclick="deleteTask(${t.id})">Delete</button>
+        </div>
+      </div>
+    `;
+    }).join('');
+  }
+
+  function addTask() {
+    const employeeId = document.getElementById('selEmployee').value;
+    const date = document.getElementById('taskDate').value || new Date().toISOString().slice(0, 10);
+    const title = document.getElementById('taskTitle').value.trim();
+    if (!employeeId || !title) return;
+
+    const db = loadDB();
+    db.tasks.push({ id: db.nextTaskId, employeeId, title, assignedDate: date, status: 'pending' });
+    db.nextTaskId += 1;
+    saveDB(db);
+
+    document.getElementById('taskTitle').value = '';
+    render();
+  }
+
+  function toggleStatus(taskId) {
+    const db = loadDB();
+    const task = db.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.status = task.status === 'completed' ? 'pending' : 'completed';
+    saveDB(db);
+    render();
+  }
+
+  function deleteTask(taskId) {
+    const db = loadDB();
+    db.tasks = db.tasks.filter(t => t.id !== taskId);
+    saveDB(db);
+    render();
+  }
+
+  function addEmployee() {
+    const id = document.getElementById('newEmpId').value.trim();
+    const name = document.getElementById('newEmpName').value.trim();
+    const title = document.getElementById('newEmpTitle').value.trim();
+    if (!id || !name || !title) return;
+
+    const db = loadDB();
+    if (findEmployee(db, id)) {
+      alert('An employee with this ID already exists.');
+      return;
+    }
+    db.employees.push({ id, name, title, password: 'welcome123' });
+    saveDB(db);
+
+    document.getElementById('newEmpId').value = '';
+    document.getElementById('newEmpName').value = '';
+    document.getElementById('newEmpTitle').value = '';
+    render();
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  render();
+</script>
+</body>
+</html>

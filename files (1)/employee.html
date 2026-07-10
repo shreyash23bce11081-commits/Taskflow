@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TaskFlow Ledger — My Tasks</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="shell">
+  <div class="topbar">
+    <div class="wordmark">TaskFlow<span class="dot">.</span>Ledger</div>
+    <div class="who">
+      <span class="badge-role">Employee</span>
+      <span id="whoName" class="mono" style="font-size:13px;"></span>
+      <button class="logout-btn" onclick="logout()">Log out</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <h1 class="page-title" id="greeting">My Tasks</h1>
+    <p class="page-sub" id="empMeta"></p>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-num mono" id="statTotal">0</div>
+        <div class="stat-label">Assigned</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-num mono" id="statPending">0</div>
+        <div class="stat-label">Pending</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-num mono" id="statDone">0</div>
+        <div class="stat-label">Completed</div>
+      </div>
+    </div>
+
+    <div class="ledger">
+      <div class="ledger-row head">
+        <div>Task ID</div>
+        <div>Title</div>
+        <div>Assigned</div>
+        <div>Status</div>
+        <div></div>
+      </div>
+      <div id="taskList"></div>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+  const session = currentSession();
+  if (!session || session.role !== 'employee') {
+    window.location.href = 'index.html';
+  }
+
+  function logout() {
+    clearSession();
+    window.location.href = 'index.html';
+  }
+
+  function render() {
+    const db = loadDB();
+    const emp = findEmployee(db, session.id);
+    if (!emp) { logout(); return; }
+
+    document.getElementById('whoName').textContent = emp.id;
+    document.getElementById('greeting').textContent = `Welcome back, ${emp.name.split(' ')[0]}`;
+    document.getElementById('empMeta').textContent = `${emp.title} · Employee ID ${emp.id}`;
+
+    const tasks = tasksForEmployee(db, emp.id);
+    const done = tasks.filter(t => t.status === 'completed').length;
+
+    document.getElementById('statTotal').textContent = tasks.length;
+    document.getElementById('statPending').textContent = tasks.length - done;
+    document.getElementById('statDone').textContent = done;
+
+    const list = document.getElementById('taskList');
+    if (tasks.length === 0) {
+      list.innerHTML = '<div class="empty-state">No tasks assigned yet. Check back once your admin assigns one.</div>';
+      return;
+    }
+
+    list.innerHTML = tasks.map(t => `
+      <div class="ledger-row">
+        <div class="emp-id mono">TSK-${String(t.id).padStart(3, '0')}</div>
+        <div class="task-title">${escapeHtml(t.title)}</div>
+        <div class="mono" style="font-size:12.5px; color:var(--muted);">${t.assignedDate}</div>
+        <div><span class="stamp ${t.status === 'completed' ? 'complete' : 'pending'}">${t.status === 'completed' ? 'Complete' : 'Pending'}</span></div>
+        <div class="row-actions">
+          ${t.status === 'completed'
+            ? `<button class="icon-btn" onclick="toggleStatus(${t.id})">Reopen</button>`
+            : `<button class="icon-btn confirm" onclick="toggleStatus(${t.id})">Mark done</button>`}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function toggleStatus(taskId) {
+    const db = loadDB();
+    const task = db.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.status = task.status === 'completed' ? 'pending' : 'completed';
+    saveDB(db);
+    render();
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  render();
+</script>
+</body>
+</html>

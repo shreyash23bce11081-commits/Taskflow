@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TaskFlow Ledger — Sign in</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="wordmark">TaskFlow<span class="dot">.</span>Ledger</div>
+    <div class="login-sub">Sign in to view or manage employee task records.</div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tabEmployee" onclick="switchTab('employee')">Employee</button>
+      <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin')">Admin</button>
+    </div>
+
+    <!-- EMPLOYEE LOGIN -->
+    <form id="employeeForm" onsubmit="return handleEmployeeLogin(event)">
+      <div class="field">
+        <label for="empId">Employee ID</label>
+        <input type="text" id="empId" placeholder="e.g. IN26012541" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="empPass">Password</label>
+        <input type="password" id="empPass" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button type="submit" class="btn-primary">Sign in as employee</button>
+    </form>
+
+    <!-- ADMIN LOGIN -->
+    <form id="adminForm" onsubmit="return handleAdminLogin(event)" style="display:none;">
+      <div class="field">
+        <label for="adminUser">Username</label>
+        <input type="text" id="adminUser" placeholder="admin" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="adminPass">Password</label>
+        <input type="password" id="adminPass" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button type="submit" class="btn-primary">Sign in as admin</button>
+    </form>
+
+    <div class="login-error" id="loginError"></div>
+
+    <div class="hint-box">
+      <b>Demo credentials</b><br/>
+      Employee — ID: <b>IN26012541</b> · Password: <b>shreyash123</b><br/>
+      Admin — Username: <b>admin</b> · Password: <b>admin123</b>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+  function switchTab(which) {
+    const isEmployee = which === 'employee';
+    document.getElementById('tabEmployee').classList.toggle('active', isEmployee);
+    document.getElementById('tabAdmin').classList.toggle('active', !isEmployee);
+    document.getElementById('employeeForm').style.display = isEmployee ? 'block' : 'none';
+    document.getElementById('adminForm').style.display = isEmployee ? 'none' : 'block';
+    document.getElementById('loginError').textContent = '';
+  }
+
+  function handleEmployeeLogin(e) {
+    e.preventDefault();
+    const id = document.getElementById('empId').value.trim();
+    const pass = document.getElementById('empPass').value;
+    const db = loadDB();
+    const emp = findEmployee(db, id);
+    if (!emp || emp.password !== pass) {
+      document.getElementById('loginError').textContent = 'Employee ID or password is incorrect.';
+      return false;
+    }
+    setSession({ role: 'employee', id: emp.id, name: emp.name });
+    window.location.href = 'employee.html';
+    return false;
+  }
+
+  function handleAdminLogin(e) {
+    e.preventDefault();
+    const user = document.getElementById('adminUser').value.trim();
+    const pass = document.getElementById('adminPass').value;
+    const db = loadDB();
+    const admin = findAdmin(db, user);
+    if (!admin || admin.password !== pass) {
+      document.getElementById('loginError').textContent = 'Username or password is incorrect.';
+      return false;
+    }
+    setSession({ role: 'admin', username: admin.username, name: admin.name });
+    window.location.href = 'admin.html';
+    return false;
+  }
+
+  // ensure DB exists on first load
+  loadDB();
+</script>
+</body>
+</html>
